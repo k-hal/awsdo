@@ -33,11 +33,12 @@ import (
 )
 
 var (
-	profile      string
-	duration     string
-	sNum         string
-	tokenCode    string
-	disableCache bool
+	profile                string
+	duration               string
+	sNum                   string
+	tokenCode              string
+	disableCache           bool
+	withSSMSessionRunAsTag bool
 )
 
 var rootCmd = &cobra.Command{
@@ -55,7 +56,8 @@ var rootCmd = &cobra.Command{
 			token.Duration(duration),
 			token.SerialNumber(sNum),
 			token.TokenCode(tokenCode),
-			token.DisableCache(disableCache))
+			token.DisableCache(disableCache),
+			token.WithSSMSessionRunAsTag(withSSMSessionRunAsTag))
 		if err != nil {
 			return err
 		}
@@ -81,6 +83,9 @@ var rootCmd = &cobra.Command{
 		c := exec.Command(command, args[1:]...)
 		c.Stdout = os.Stderr
 		c.Stderr = os.Stderr
+		if withSSMSessionRunAsTag {
+			c.Stdin = os.Stdin
+		}
 		c.Env = envs
 		if err := c.Run(); err != nil {
 			return err
@@ -103,4 +108,5 @@ func init() {
 	rootCmd.Flags().StringVarP(&sNum, "serial-number", "n", "", "the identification number of the MFA device")
 	rootCmd.Flags().StringVarP(&tokenCode, "token-code", "c", "", "the value provided by the MFA device")
 	rootCmd.Flags().BoolVarP(&disableCache, "disable-cache", "", false, "disable the credentials cache")
+	rootCmd.Flags().BoolVarP(&withSSMSessionRunAsTag, "with-ssm", "", false, "assume role with SSMSessionRunAs IAM Principal tag")
 }

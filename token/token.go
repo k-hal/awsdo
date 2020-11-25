@@ -26,11 +26,12 @@ type Token struct {
 }
 
 type Config struct {
-	profile         string
-	durationSeconds int64
-	sNum            string
-	tokenCode       string
-	disableCache    bool
+	profile                string
+	durationSeconds        int64
+	sNum                   string
+	tokenCode              string
+	disableCache           bool
+	withSSMSessionRunAsTag bool
 }
 
 type Option func(*Config) error
@@ -76,6 +77,13 @@ func TokenCode(tokenCode string) Option {
 func DisableCache(disableCache bool) Option {
 	return func(c *Config) error {
 		c.disableCache = disableCache
+		return nil
+	}
+}
+
+func WithSSMSessionRunAsTag(withSSMSessionRunAsTag bool) Option {
+	return func(c *Config) error {
+		c.withSSMSessionRunAsTag = withSSMSessionRunAsTag
 		return nil
 	}
 }
@@ -153,6 +161,29 @@ func Get(ctx context.Context, options ...Option) (*Token, error) {
 		if c.sNum != "" {
 			opt.SerialNumber = &c.sNum
 			opt.TokenCode = &c.tokenCode
+		}
+
+		if c.withSSMSessionRunAsTag {
+			iamSvc := iam.New(sess)
+			currentIamUserOutput, _ := iamSvc.GetUserWithContext(ctx, &iam.GetUserInput{})
+			iamUserTagOutput, _ := iamSvc.ListUserTagsWithContext(ctx, &iam.ListUserTagsInput{UserName: currentIamUserOutput.User.UserName})
+			iamUserTags := iamUserTagOutput.Tags
+			var stsTags []*sts.Tag
+			const runasTagkey = "SSMSessionRunAs"
+
+			for _, v := range iamUserTags {
+				if *v.Key == runasTagkey {
+
+					t := &sts.Tag{
+						Key:   v.Key,
+						Value: v.Value,
+					}
+					stsTags = append(stsTags, t)
+				}
+			}
+			if stsTags != nil {
+				opt.Tags = stsTags
+			}
 		}
 		assueRoleOut, err := stsSvc.AssumeRoleWithContext(ctx, opt)
 		if err != nil {
